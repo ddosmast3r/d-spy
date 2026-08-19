@@ -11,16 +11,25 @@ import re
 from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
 
 from style import SYSTEM, build_prompt
 
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "").rstrip("/")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+load_dotenv()  # не полагаемся на порядок импортов: грузим .env здесь же
+
 EXAMPLES_PATH = Path(__file__).parent / "examples.json"
 
 
+def _host() -> str:
+    return os.getenv("OLLAMA_HOST", "").rstrip("/")
+
+
+def _model() -> str:
+    return os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+
+
 def enabled() -> bool:
-    return bool(OLLAMA_HOST)
+    return bool(_host())
 
 
 def _load_examples() -> list[dict]:
@@ -30,16 +39,17 @@ def _load_examples() -> list[dict]:
 
 
 def health(client: httpx.Client) -> tuple[bool, str]:
-    if not OLLAMA_HOST:
+    host = _host()
+    if not host:
         return False, "OLLAMA_HOST не задан в .env"
     try:
-        response = client.get(f"{OLLAMA_HOST}/api/tags", timeout=10)
+        response = client.get(f"{host}/api/tags", timeout=10)
         models = [m["name"] for m in response.json().get("models", [])]
         if not models:
             return False, "Ollama отвечает, но моделей нет. Скачайте: ollama pull <модель>"
-        if OLLAMA_MODEL not in models:
-            return False, f"модели {OLLAMA_MODEL} нет. Доступны: {', '.join(models)}"
-        return True, f"Ollama на связи, модель {OLLAMA_MODEL}"
+        if _model() not in models:
+            return False, f"модели {_model()} нет. Доступны: {', '.join(models)}"
+        return True, f"Ollama на связи, модель {_model()}"
     except Exception as exc:
         return False, f"Ollama недоступна: {exc}"
 
@@ -78,9 +88,9 @@ def draft(review_text: str, author: str | None, rating: int | None,
           org_title: str, client: httpx.Client) -> str:
     prompt = build_prompt(review_text, author, rating, org_title, _load_examples())
     response = client.post(
-        f"{OLLAMA_HOST}/api/chat",
+        f"{_host()}/api/chat",
         json={
-            "model": OLLAMA_MODEL,
+            "model": _model(),
             "messages": [
                 {"role": "system", "content": SYSTEM},
                 {"role": "user", "content": prompt},
