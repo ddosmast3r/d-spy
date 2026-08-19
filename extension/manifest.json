@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Черновики ответов на отзывы",
+  "version": "1.0.0",
+  "description": "Генерирует черновик ответа на отзыв в Яндекс Бизнесе через локальную Ollama и вставляет в поле ответа.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://yandex.ru/*",
+    "https://*.yandex.ru/*",
+    "http://192.168.0.112/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://yandex.ru/sprav/*",
+        "https://*.yandex.ru/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

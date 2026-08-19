@@ -1,0 +1,19 @@
+#draft-fab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 2147483647;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  font-family: -apple-system, system-ui, sans-serif;
+}
+#draft-btn {
+  background: #ff8c00; color: #fff; border: none; border-radius: 22px;
+  padding: 11px 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 3px 12px rgba(0,0,0,.25);
+}
+#draft-btn:disabled { opacity: .6; cursor: default; }
+#draft-status {
+  font-size: 12px; padding: 4px 10px; border-radius: 10px; max-width: 240px;
+  text-align: right; background: rgba(0,0,0,.75); color: #fff;
+}
+#draft-status:empty { display: none; }
+#draft-status.err { background: #c0392b; }
+#draft-status.ok  { background: #218c5a; }
+#draft-status.wait{ background: #555; }
