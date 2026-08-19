@@ -143,10 +143,14 @@ def handle_button(text: str, seen: Seen, client: httpx.Client) -> None:
         for org in ORGS:
             try:
                 reviews, _ = fetch(org, client)
-                for review in reversed(reviews[:5]):
+                if not reviews:
+                    tg.send(f"{org.title}: отзывов нет.", client)
+                    continue
+                # у «тихих» организаций отзывы редки: пачка из пяти это одно и то же старьё
+                limit = 1 if org.quiet else 5
+                for review in reversed(reviews[:limit]):
                     tg.send(tg.format_review(review, org.title, org.reviews_url), client)
-                if reviews:
-                    _remember_last(reviews[0], org.title)
+                _remember_last(reviews[0], org.title)
             except Exception as exc:
                 tg.send(f"⚠️ {org.title}: {exc}", client)
         return

@@ -9,6 +9,8 @@ load_dotenv()
 class Org:
     org_id: str
     title: str
+    # «тихая» организация: отзывы редки, показывать пачкой бессмысленно
+    quiet: bool = False
 
     @property
     def reviews_url(self) -> str:
@@ -22,8 +24,12 @@ def _parse_orgs(raw: str) -> list[Org]:
         chunk = chunk.strip()
         if not chunk:
             continue
-        org_id, _, title = chunk.partition(":")
-        orgs.append(Org(org_id.strip(), title.strip() or org_id.strip()))
+        parts = [p.strip() for p in chunk.split(":")]
+        org_id = parts[0]
+        quiet = len(parts) > 2 and parts[-1].lower() == "quiet"
+        title_parts = parts[1:-1] if quiet else parts[1:]
+        title = ":".join(title_parts).strip() or org_id
+        orgs.append(Org(org_id, title, quiet))
     return orgs
 
 
