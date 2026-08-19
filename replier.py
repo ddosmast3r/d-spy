@@ -86,7 +86,8 @@ def draft(review_text: str, author: str | None, rating: int | None,
                 {"role": "user", "content": prompt},
             ],
             "stream": False,
-            "options": {"temperature": 0.7, "num_predict": 400},
+            "think": False,  # gemma4 — reasoning-модель; без этого бюджет уходит в thinking, а ответ пустой
+            "options": {"temperature": 0.7, "num_predict": 1200},
         },
         timeout=180,
     )
