@@ -15,12 +15,16 @@ BTN_CHECK = "🔄 Проверить сейчас"
 BTN_STATS = "📊 Статистика"
 BTN_LAST = "📝 Последние 5"
 BTN_DRAFT = "🤖 Черновик к последнему"
+BTN_PZ_START = "🎮 Сервер вкл"
+BTN_PZ_STOP = "🛑 Сервер выкл"
+BTN_PZ_STATUS = "ℹ️ Статус сервера"
 
 KEYBOARD = {
     "keyboard": [
         [{"text": BTN_CHECK}],
         [{"text": BTN_STATS}, {"text": BTN_LAST}],
         [{"text": BTN_DRAFT}],
+        [{"text": BTN_PZ_START}, {"text": BTN_PZ_STOP}, {"text": BTN_PZ_STATUS}],
     ],
     "resize_keyboard": True,
     "is_persistent": True,

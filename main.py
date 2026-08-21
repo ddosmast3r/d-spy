@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 import httpx
 
+import pzserver
 import replier
 import telegram_client as tg
 from config import DB_PATH, ORGS, POLL_INTERVAL
@@ -170,6 +171,27 @@ def handle_button(text: str, seen: Seen, client: httpx.Client) -> None:
         review, org_title = _last
         tg.send(f"Пишу черновик к отзыву: {review.author}…", client)
         send_draft(review, org_title, client)
+        return
+
+    if text == tg.BTN_PZ_START:
+        if not pzserver.enabled():
+            tg.send("Управление сервером не настроено.", client)
+            return
+        tg.send(pzserver.start(), client)
+        return
+
+    if text == tg.BTN_PZ_STOP:
+        if not pzserver.enabled():
+            tg.send("Управление сервером не настроено.", client)
+            return
+        tg.send(pzserver.stop(), client)
+        return
+
+    if text == tg.BTN_PZ_STATUS:
+        if not pzserver.enabled():
+            tg.send("Управление сервером не настроено.", client)
+            return
+        tg.send(pzserver.status_text(), client)
         return
 
     tg.send("Не знаю такой команды. Пользуйтесь кнопками внизу.", client)
