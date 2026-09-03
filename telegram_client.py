@@ -5,7 +5,7 @@ import html
 
 import httpx
 
-from config import BOT_TOKEN, OWNER_CHAT_ID
+from config import BOT_TOKEN, ORGS, OWNER_CHAT_ID
 from yandex_reviews import Meta, Review
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
@@ -13,17 +13,25 @@ _MAX_LEN = 3500
 
 BTN_CHECK = "🔄 Проверить сейчас"
 BTN_STATS = "📊 Статистика"
-BTN_LAST = "📝 Последние 5"
+BTN_LAST = "📝 Последние по всем"
 BTN_DRAFT = "🤖 Черновик к последнему"
 BTN_PZ_START = "🎮 Сервер вкл"
 BTN_PZ_STOP = "🛑 Сервер выкл"
 BTN_PZ_STATUS = "ℹ️ Статус сервера"
 
+
+def org_button(title: str) -> str:
+    """Кнопка одного магазина. Отзывы разных точек больше не валятся вперемешку."""
+    return f"📝 {title}"
+
+
+ORG_BUTTONS = {org_button(org.title): org for org in ORGS}
+
 KEYBOARD = {
     "keyboard": [
-        [{"text": BTN_CHECK}],
-        [{"text": BTN_STATS}, {"text": BTN_LAST}],
-        [{"text": BTN_DRAFT}],
+        [{"text": BTN_CHECK}, {"text": BTN_STATS}],
+        *[[{"text": text}] for text in ORG_BUTTONS],
+        [{"text": BTN_LAST}, {"text": BTN_DRAFT}],
         [{"text": BTN_PZ_START}, {"text": BTN_PZ_STOP}, {"text": BTN_PZ_STATUS}],
     ],
     "resize_keyboard": True,
@@ -35,15 +43,25 @@ def _clip(text: str) -> str:
     return text if len(text) <= _MAX_LEN else text[:_MAX_LEN] + "…"
 
 
-def format_review(review: Review, org_title: str, url: str) -> str:
+def format_review(review: Review, org_title: str, url: str, number: int | None = None) -> str:
     date = review.updated.strftime("%d.%m.%Y %H:%M") if review.updated else "дата неизвестна"
     body = html.escape(review.text) or "<i>без текста</i>"
-    return (
-        f"<b>{html.escape(org_title)}</b>\n"
-        f"{review.stars}  {html.escape(review.author)}  ·  {date}\n\n"
-        f"{_clip(body)}\n\n"
-        f'<a href="{html.escape(url)}">Открыть отзывы</a>'
-    )
+    lines = [
+        f"<b>{html.escape(org_title)}</b>",
+        f"{review.stars}  {html.escape(review.author)}  ·  {date}",
+        "",
+        _clip(body),
+        "",
+        f'<a href="{html.escape(url)}">Открыть отзывы</a>',
+    ]
+    # Номер даёт ответить на любой показанный отзыв, а не только на самый последний.
+    if number is not None:
+        lines.append(f"Черновик ответа: /d{number}")
+    return "\n".join(lines)
+
+
+def format_org_header(org_title: str) -> str:
+    return f"━━━━━  <b>{html.escape(org_title)}</b>  ━━━━━"
 
 
 def format_stats(meta: Meta, org_title: str, reviews: list[Review]) -> str:

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -75,7 +76,8 @@ def check_orgs(seen: Seen, client: httpx.Client, notify: bool, announce_empty: b
             for review in sorted(fresh, key=_sort_key):
                 if notify:
                     try:
-                        tg.send(tg.format_review(review, org.title, org.reviews_url), client)
+                        number = seen.register(review, org.title)
+                        tg.send(tg.format_review(review, org.title, org.reviews_url, number), client)
                         _remember_last(review, org.title)
                         send_draft(review, org.title, client)
                     except Exception as exc:
@@ -104,21 +106,45 @@ def _remember_last(review: Review, org_title: str) -> None:
 
 
 def send_draft(review: Review, org_title: str, client: httpx.Client) -> None:
+    send_draft_fields(review.text, review.author, review.rating, org_title, client)
+
+
+def send_draft_fields(text: str, author: str | None, rating: int | None,
+                      org_title: str, client: httpx.Client) -> None:
     """Черновик ответа отдельным сообщением, чтобы его было удобно скопировать целиком."""
     if not replier.enabled():
         return
     try:
-        text = replier.draft(review.text, review.author, review.rating, org_title, client)
+        draft = replier.draft(text, author, rating, org_title, client)
     except Exception as exc:
         log.error("черновик не сгенерировался: %s", exc)
         tg.send(f"⚠️ Черновик не получился: {exc}", client)
         return
-    tg.send(f"<b>Черновик ответа</b>\n\n<code>{_escape(text)}</code>", client)
+    tg.send(f"<b>Черновик ответа</b>\n\n<code>{_escape(draft)}</code>", client)
 
 
 def _escape(text: str) -> str:
     import html
     return html.escape(text)
+
+
+def send_last(org, seen: Seen, client: httpx.Client) -> None:
+    """Последние отзывы одной точки: заголовок, потом сами отзывы. Точки не смешиваются."""
+    try:
+        reviews, _ = fetch(org, client)
+    except Exception as exc:
+        tg.send(f"⚠️ {org.title}: {exc}", client)
+        return
+    if not reviews:
+        tg.send(f"{org.title}: отзывов нет.", client)
+        return
+    # у «тихих» организаций отзывы редки: пачка из пяти это одно и то же старьё
+    limit = 1 if org.quiet else 5
+    tg.send(tg.format_org_header(org.title), client)
+    for review in reversed(reviews[:limit]):
+        number = seen.register(review, org.title)
+        tg.send(tg.format_review(review, org.title, org.reviews_url, number), client)
+    _remember_last(reviews[0], org.title)
 
 
 def handle_button(text: str, seen: Seen, client: httpx.Client) -> None:
@@ -142,18 +168,25 @@ def handle_button(text: str, seen: Seen, client: httpx.Client) -> None:
 
     if text == tg.BTN_LAST:
         for org in ORGS:
-            try:
-                reviews, _ = fetch(org, client)
-                if not reviews:
-                    tg.send(f"{org.title}: отзывов нет.", client)
-                    continue
-                # у «тихих» организаций отзывы редки: пачка из пяти это одно и то же старьё
-                limit = 1 if org.quiet else 5
-                for review in reversed(reviews[:limit]):
-                    tg.send(tg.format_review(review, org.title, org.reviews_url), client)
-                _remember_last(reviews[0], org.title)
-            except Exception as exc:
-                tg.send(f"⚠️ {org.title}: {exc}", client)
+            send_last(org, seen, client)
+        return
+
+    org = tg.ORG_BUTTONS.get(text)
+    if org is not None:
+        send_last(org, seen, client)
+        return
+
+    match = re.fullmatch(r"/d(\d+)", text)
+    if match:
+        if not replier.enabled():
+            tg.send("Черновики выключены: в .env не задан OLLAMA_HOST.", client)
+            return
+        row = seen.shown(int(match.group(1)))
+        if not row:
+            tg.send("Такого отзыва нет. Номер берётся из карточки отзыва.", client)
+            return
+        tg.send(f"Пишу черновик к отзыву: {row['author']}…", client)
+        send_draft_fields(row["text"], row["author"], row["rating"], row["org_title"], client)
         return
 
     if text == tg.BTN_DRAFT:
