@@ -27,9 +27,9 @@ _lock = threading.Lock()
 # последний показанный отзыв, чтобы кнопка черновика знала, к чему его писать
 _last: tuple[Review, str] | None = None
 
-# когда в последний раз жаловались на пустой ответ Яндекса, чтобы не спамить каждые 10 минут
-_empty_warned: dict[str, float] = {}
-_EMPTY_WARN_EVERY = 3600
+# сколько проверок подряд Яндекс отдал страницу без отзывов; жалуемся один раз, на пороге
+_empty_streak: dict[str, int] = {}
+_EMPTY_WARN_AFTER = 3
 
 
 def check_orgs(seen: Seen, client: httpx.Client, notify: bool, announce_empty: bool = False) -> int:
@@ -49,17 +49,18 @@ def check_orgs(seen: Seen, client: httpx.Client, notify: bool, announce_empty: b
             # Яндекс иногда отдаёт страницу без данных. Молчать об этом нельзя:
             # иначе бот выглядит рабочим, а уведомления тихо перестают приходить.
             if not reviews and seen.count(org.org_id) > 0:
-                log.warning("%s: страница отдалась, но отзывов в ней нет", org.title)
-                last = _empty_warned.get(org.org_id, 0)
-                if notify and time.time() - last > _EMPTY_WARN_EVERY:
-                    _empty_warned[org.org_id] = time.time()
+                streak = _empty_streak.get(org.org_id, 0) + 1
+                _empty_streak[org.org_id] = streak
+                log.warning("%s: страница отдалась, но отзывов в ней нет (%d раз подряд)",
+                            org.title, streak)
+                if notify and streak == _EMPTY_WARN_AFTER:
                     tg.send(
-                        f"⚠️ {org.title}: Яндекс отдал страницу без отзывов. "
-                        "Разово это бывает, но если повторяется, парсер пора чинить.",
+                        f"⚠️ {org.title}: Яндекс уже {streak} проверки подряд отдаёт страницу "
+                        "без отзывов. Похоже, пора чинить парсер.",
                         client,
                     )
                 continue
-            _empty_warned.pop(org.org_id, None)
+            _empty_streak.pop(org.org_id, None)
 
             first_run = seen.count(org.org_id) == 0
             fresh = [r for r in reviews if not seen.is_known(r.review_id)]
@@ -263,6 +264,8 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S"
     )
+    # httpx пишет каждый запрос вместе с URL, а в URL телеграма лежит токен бота
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     if not ORGS:
         raise SystemExit("В .env не задан ORGS")
 

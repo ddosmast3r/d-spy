@@ -7,12 +7,18 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import httpx
 
 from config import USER_AGENT, Org
+
+# Яндекс примерно в трети ответов не вкладывает отзывы в страницу (вместо reviewResults
+# приходит reviewPollData, отзывы догружает браузер). Повторный запрос обычно приносит их.
+_ATTEMPTS = 4
+_RETRY_PAUSE = 3
 
 _STATE_RE = re.compile(
     r'<script type="application/json" class="state-view">(.*?)</script>', re.S
@@ -86,6 +92,15 @@ def _extract_meta(state: dict) -> Meta:
 
 
 def fetch(org: Org, client: httpx.Client) -> tuple[list[Review], Meta]:
+    """Отзывы и рейтинг. Пустую выдачу при ненулевом счётчике отзывов перезапрашивает."""
+    for attempt in range(_ATTEMPTS):
+        reviews, meta = _fetch_once(org, client)
+        if reviews or not meta.review_count or attempt == _ATTEMPTS - 1:
+            return reviews, meta
+        time.sleep(_RETRY_PAUSE)
+
+
+def _fetch_once(org: Org, client: httpx.Client) -> tuple[list[Review], Meta]:
     response = client.get(
         org.reviews_url,
         headers={"User-Agent": USER_AGENT, "Accept-Language": "ru,en;q=0.9"},
