@@ -10,6 +10,8 @@ from yandex_reviews import Meta, Review
 
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 _MAX_LEN = 3500
+# у кнопки copy_text в Bot API жёсткий предел длины текста
+_COPY_MAX = 256
 
 BTN_CHECK = "🔄 Проверить сейчас"
 BTN_STATS = "📊 Статистика"
@@ -84,15 +86,27 @@ def format_stats(meta: Meta, org_title: str, reviews: list[Review]) -> str:
     return "\n".join(lines)
 
 
-def send(text: str, client: httpx.Client, keyboard: bool = True) -> None:
-    """Единственная точка отправки. chat_id не параметр: другому адресату не уйдёт."""
+def copy_button(text: str) -> dict | None:
+    """Кнопка «Скопировать текст» под сообщением. Длиннее предела Telegram её не примет."""
+    if not text or len(text) > _COPY_MAX:
+        return None
+    return {"inline_keyboard": [[{"text": "📋 Скопировать текст", "copy_text": {"text": text}}]]}
+
+
+def send(text: str, client: httpx.Client, keyboard: bool = True, markup: dict | None = None) -> None:
+    """Единственная точка отправки. chat_id не параметр: другому адресату не уйдёт.
+
+    markup подменяет нижнюю клавиатуру кнопками под сообщением; нижняя при этом не пропадает.
+    """
     payload = {
         "chat_id": OWNER_CHAT_ID,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
-    if keyboard:
+    if markup:
+        payload["reply_markup"] = markup
+    elif keyboard:
         payload["reply_markup"] = KEYBOARD
     response = client.post(f"{API}/sendMessage", json=payload, timeout=30)
     data = response.json()

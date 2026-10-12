@@ -121,7 +121,13 @@ def send_draft_fields(text: str, author: str | None, rating: int | None,
         log.error("черновик не сгенерировался: %s", exc)
         tg.send(f"⚠️ Черновик не получился: {exc}", client)
         return
-    tg.send(f"<b>Черновик ответа</b>\n\n<code>{_escape(draft)}</code>", client)
+    send_draft_text(draft, client)
+
+
+def send_draft_text(draft: str, client: httpx.Client, title: str = "Черновик ответа") -> None:
+    button = tg.copy_button(draft)
+    note = "" if button else "\n\n<i>Длинный для кнопки: нажмите на текст, он скопируется.</i>"
+    tg.send(f"<b>{_escape(title)}</b>\n\n<code>{_escape(draft)}</code>{note}", client, markup=button)
 
 
 def _escape(text: str) -> str:
